@@ -1,0 +1,16 @@
+server {
+    listen 4000;
+    listen [::]:4000;
+
+    server_name myapp;
+
+    location /api {
+        proxy_pass http://localhost:2003/api;
+        include proxy_params;
+    }
+
+    location / {
+        proxy_pass http://localhost:3000;
+        include proxy_params;
+    }
+}
