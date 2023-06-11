@@ -49,6 +49,10 @@ type data struct {
 	Body string `json:"body"`
 }
 
+type online struct {
+	Users []string `json:"users"`
+}
+
 var onlineUsers = make(map[string]net.Conn)
 var secret = []byte("sUp3R_S3cr37")
 
@@ -93,6 +97,11 @@ func handleConn() {
 func trackClient(user string) error {
 	for {
 		buffer := make([]byte, 1024)
+		
+		if onlineUsers[user] == nil {
+			fmt.Println("User not found")
+			return nil
+		}
 		_, err := onlineUsers[user].Read(buffer)
 
 		if err != nil {
@@ -432,7 +441,23 @@ func main() {
 	})
 
 	app.Get("/api/user/verify", func(c *fiber.Ctx) error {
-		return c.Status(200).JSON(message{ "success", "", "Verified" })
+		cUser := c.Locals("session").(*sessionUser)
+		return c.Status(200).JSON(message{ "success", "",  cUser.Username })
+	})
+
+	app.Get("/api/user/getonline", func(c *fiber.Ctx) error {
+		cUser := c.Locals("session").(*sessionUser)
+		users := make([]string, len(onlineUsers) - 1)
+
+		i := 0
+		for k := range onlineUsers {
+			if (k != cUser.Username) {
+				users[i] = k
+				i++
+			}
+		}
+
+		return c.Status(200).JSON(online{ users })
 	})
 
 	// ========================

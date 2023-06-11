@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -17,7 +17,6 @@ export default function Register() {
             }
         }), {
             pending: 'Submitting',
-            // success: 'Done',
             error: 'Could not send data'
         })
     
@@ -48,6 +47,7 @@ export default function Register() {
                     <input name="confirm-password" type="password" className="outline-none px-5 py-3 rounded-lg text-slate-600 font-medium transition focus:shadow-md"></input>
                 </div>
                 <button onClick={handleRegister} className="p-3 text-slate-600 font-semibold indent-1.5 text-lg bg-violet-300 rounded-lg transition hover:shadow-lg">Register</button>
+                <Link to="/app/auth/login"><p className="indent-1.5 underline text-slate-600">I already have an account</p></Link>
                 <ToastContainer></ToastContainer>
             </div>
         </div>
