@@ -447,7 +447,9 @@ func main() {
 
 	app.Get("/api/user/getonline", func(c *fiber.Ctx) error {
 		cUser := c.Locals("session").(*sessionUser)
-		users := make([]string, len(onlineUsers) - 1)
+		total := len(onlineUsers)
+
+		users := make([]string, total)
 
 		i := 0
 		for k := range onlineUsers {

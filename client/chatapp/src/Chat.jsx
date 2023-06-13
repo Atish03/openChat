@@ -22,8 +22,10 @@ export default function Chat() {
     const [message, setMessage] = useState({});
     const [curMsg, setCurMsg] = useState({});
     const [receiver, setReceiver] = useState("");
+    const [userSearch, setUserSearch] = useState("");
     const [sender, setSender] = useState("");
     const [online, setOnline] = useState([]);
+    const [onlineToShow, setOnlineToShow] = useState([]);
     const [authorized, setAuthorized] = useState(false);
     const navigate = useNavigate();
 
@@ -96,8 +98,13 @@ export default function Chat() {
         }
     }, [curMsg]);
 
-    const addReceiver = () => {
-        setReceiver(document.getElementById("receiver").value);
+    useEffect(() => {
+        const regex = new RegExp(userSearch);
+        setOnlineToShow(online.filter(e => regex.test(e.toLowerCase())));
+    }, [userSearch, online])
+
+    const searchReceiver = () => {
+        setUserSearch(document.getElementById("receiver").value);
     }
 
     const sendMessage = () => {
@@ -127,9 +134,9 @@ export default function Chat() {
         setReceiver(e.target.innerHTML);
     }
 
-    useEffect(() => {
-        if (authorized) document.getElementById("receiver").value = receiver;
-    }, [receiver]);
+    // useEffect(() => {
+    //     if (authorized) document.getElementById("receiver").value = receiver;
+    // }, [receiver]);
 
     const loadOnline = () => {
         fetch("/api/user/getonline", {
@@ -139,31 +146,38 @@ export default function Chat() {
         }).then((resp) => {
             return resp.json();
         }).then((data) => {
-            setOnline(data.users);
+            setOnline(data.users.sort().filter(e => e != ""));
         })
+    }
+
+    const handleSend = (e) => {
+        if (e.key == "Enter") {
+            sendMessage();
+        }
     }
 
     return (
         <>
         { authorized ?
-            <div className='flex flex-col justify-center'>
-                <div className='p-3 flex justify-center'>
+            <div className='block flex-col justify-center h-full'>
+                <div className='p-3 flex justify-center items-center'>
                     <p className='text-center text-4xl bg-white w-fit p-3 rounded-xl text-gray-600 font-bold'>Hi, {sender}</p>
                 </div>
-                <div className='flex gap-3 h-96'>
-                    <div className='flex flex-col gap-3'>
-                        <input id='receiver' onChange={addReceiver} className='outline-none focus:shadow-lg rounded-lg px-5 py-3 text-gray-700' placeholder="Select someone to talk" />
-                        <div className='flex relative h-fit min-h-full w-full bg-white rounded-lg p-5'>
-                            <img onClick={loadOnline} className='w-8 h-8 absolute bg-white -left-2 -top-2 rounded-full cursor-pointer' src='/assets/reload-refresh.svg'></img>
+                <div className='flex flex-col gap-3 md:flex-row h-fit'>
+                    <div id='searcher' className='flex flex-col gap-3 h-fit w-screen p-5 pb-0 md:w-full md:p-0 md:flex md:h-96'>
+                        <input id='receiver' onChange={searchReceiver} className='outline-none focus:shadow-lg rounded-lg px-5 py-3 text-gray-700' placeholder="Search users online" />
+                        <div className='flex relative h-fit min-h-full w-full bg-white rounded-lg pt-10 p-5 overflow-y-scroll overflow-x-visible'>
+                            <img onClick={loadOnline} className='w-8 h-8 absolute bg-white left-1 top-1 rounded-full cursor-pointer' src='/assets/reload-refresh.svg'></img>
                             {
                                 online.length == 0 ? <div className='flex flex-col h-full w-full justify-center items-center text-gray-500'><img className='w-27 h-16' src='/assets/doggo.jpg'></img>No one is online</div> : 
                                 <div className='flex flex-col gap-2 justify-center w-full h-fit'>
-                                    { Object.keys(online).map((ind) => <p key={ind} onClick={selectUser} className='text-gray-500 cursor-pointer p-2 w-full transition text-center font-medium text-lg rounded-lg hover:shadow-md border-2'>{online[ind]}</p>) }
+                                    { Object.keys(onlineToShow).map((ind) => <p key={ind} onClick={selectUser} className='text-gray-500 cursor-pointer p-2 w-full transition text-center font-medium text-lg rounded-lg hover:shadow-md border-2'>{onlineToShow[ind]}</p>) }
                                 </div>
                             }
                         </div>
                     </div>
-                    <div className='flex flex-col gap-3'>
+                    <div className='flex flex-col gap-3 h-96 w-screen p-5 md:w-full md:p-0'>
+                        <p className='text-center bg-white p-2 rounded-lg text-2xl font-bold text-gray-500'>{receiver == "" ? "No user selected" : "Chat with " + receiver}</p>
                         <div className='flex flex-col rounded-lg w-full h-fit min-h-full p-5 text-gray-600 bg-white gap-2 overflow-scroll overflow-x-hidden'>
                             {
                                 message[receiver] != undefined ?
@@ -176,7 +190,7 @@ export default function Chat() {
                             }
                         </div>
                         <div className='flex gap-3 items-center'>
-                            <input name='typed' className='outline-none focus:shadow-lg rounded-lg px-5 py-3 text-md text-gray-700 w-full' placeholder='Type something...' />
+                            <input name='typed' onKeyDownCapture={handleSend} className='outline-none focus:shadow-lg rounded-lg px-5 py-3 text-md text-gray-700 w-full' placeholder='Type something...' autoFocus={true} />
                             <img onClick={sendMessage} className='h-11 shadow-lg w-auto bg-white transition rounded-lg hover:shadow-xl cursor-pointer' src='/assets/send.png' />
                         </div>
                     </div>

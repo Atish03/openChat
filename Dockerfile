@@ -24,4 +24,4 @@ RUN cd /client && npm i
 
 RUN ln -s /etc/nginx/sites-available/myapp /etc/nginx/sites-enabled/
 
-CMD /etc/init.d/nginx restart && websockify -v -D 0.0.0.0:4008 0.0.0.0:8008 && cd /client && pm2 start main.js && /main
+CMD /etc/init.d/nginx restart && websockify -v -D :4008 :8008 && cd /client && pm2 start main.js && /main
