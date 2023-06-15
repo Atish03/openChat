@@ -14,6 +14,7 @@ import (
 	"os"
 	"encoding/json"
 	"errors"
+	"io/ioutil"
 )
 
 const (
@@ -152,11 +153,10 @@ func initDB() (db *sql.DB) {
 		}
 	}
 
-	_, err = db.Exec("CREATE TABLE user (uid INT AUTO_INCREMENT, username VARCHAR(128), password VARCHAR(128), PRIMARY KEY (uid));")
+	_, err = db.Exec("CREATE TABLE user (uid INT AUTO_INCREMENT, username VARCHAR(128) UNIQUE, password VARCHAR(128), PRIMARY KEY (uid));")
 	_, err = db.Exec("ALTER TABLE user AUTO_INCREMENT = 1001")
 
-	_, err = db.Exec("CREATE TABLE cryptoKeys (uid INT AUTO_INCREMENT, username VARCHAR(128), publicKey LONGTEXT, PRIMARY KEY (uid));")
-	_, err = db.Exec("ALTER TABLE cryptoKeys AUTO_INCREMENT = 1001")
+	_, err = db.Exec("CREATE TABLE cryptoKeys (username VARCHAR(128) UNIQUE, publicKey LONGTEXT);")
 
 	fmt.Println("Created user & cryptoKeys table in openChat database")
 
@@ -221,7 +221,7 @@ func (user *sessionUser) genAndInsertKeys(db *sql.DB) (string, error) {
 	tool, _ := lattenc.NewTool()
 	sk, pk := tool.GenKeys();
 
-	_, err := db.Query("INSERT INTO cryptoKeys (username, publicKey) VALUES (?, ?)", user.Username, pk)
+	_, err := db.Query("REPLACE INTO cryptoKeys (username, publicKey) VALUES (?, ?)", user.Username, pk)
 		
 	if err != nil {
 		return "", err
@@ -251,7 +251,7 @@ func (sender *sessionUser) sendMessage(d *data) error {
 	}
 
 	onlineUsers[d.Receiver].Write(msg)
-	onlineUsers[d.Sender].Write(msg)
+	// onlineUsers[d.Sender].Write(msg)
 
 	return nil
 }
@@ -400,21 +400,40 @@ func main() {
 
 	app.Get("/api/user/genkeys", func(c *fiber.Ctx) error {
 		user := c.Locals("session").(*sessionUser)
-		_, err := user.genAndInsertKeys(db)
+		sk, err := user.genAndInsertKeys(db)
+
+		file, err := ioutil.TempFile("", "secret_" + user.Username + ".txt")
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+		defer os.Remove(file.Name())
+
+		_, err = file.WriteString(sk)
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+	  
+		err = file.Close()
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
 
 		if err != nil {
 			fmt.Println(err)
 			return c.Status(500).JSON(message{ "fail", "", "Internal server error" })
 		}
 
-		return c.Status(200).JSON(message{ "success", "", "New keys generated successfully" })
+		return c.Status(200).SendFile(file.Name(), false)
 	})
 
-	app.Get("/pubkey/:uid", func(c *fiber.Ctx) error {
-		uid := c.Params("uid")
-		fmt.Println("userid:", uid)
+	app.Get("/api/pubkey/:uname", func(c *fiber.Ctx) error {
+		uname := c.Params("uname")
+
 		var key string;
-		e := db.QueryRow("SELECT publicKey FROM cryptoKeys WHERE uid=?", uid).Scan(&key);
+		e := db.QueryRow("SELECT publicKey FROM cryptoKeys WHERE username=?", uname).Scan(&key);
 
 		if e != nil {
 			fmt.Println(e)

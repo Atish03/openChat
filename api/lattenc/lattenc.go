@@ -57,14 +57,13 @@ func uint64ToByte(data []uint64) (arr []byte) {
 	return
 }
 
-func NewTool() (tool *Tool, e error) {
-	e = nil
+func NewTool() (tool *Tool, err error) {
 	tool = new(Tool)
-	params, err := bgv.NewParametersFromLiteral(bgv.PN13QP218)
-	RLWEparams, err := rlwe.NewParametersFromLiteral(bgv.PN13QP218.RLWEParameters())
+	params, err := bgv.NewParametersFromLiteral(bgv.PN12QP109)
+	RLWEparams, err := rlwe.NewParametersFromLiteral(bgv.PN12QP109.RLWEParameters())
 
 	if err != nil {
-		e = err
+		fmt.Println(err)
 		return
 	}
 
@@ -104,10 +103,10 @@ func (tool *Tool) KeyFromB64(key string, t string) (interface{}) {
 	return 0
 }
 
-func (tool *Tool) Encrypt(data string, pk *rlwe.PublicKey) (ct []byte, degree, level int) {
+func (tool *Tool) Encrypt(data string, pk *rlwe.PublicKey) (ciphertext string, degree, level int) {
 	encryptor := bgv.NewEncryptor(tool.params, pk)
 	arr := byteToUint64([]byte(data))
-	pt := bgv.NewPlaintext(tool.params, 1)
+	pt := bgv.NewPlaintext(tool.params, 0)
 
 	tool.Encoder.EncodeCoeffs(arr, pt)
 
@@ -119,15 +118,18 @@ func (tool *Tool) Encrypt(data string, pk *rlwe.PublicKey) (ct []byte, degree, l
 
 	if err != nil {
 		fmt.Println(err)
-	}	
+	}
+
+	ciphertext = base64.StdEncoding.EncodeToString(ct)
 
 	return
 }
 
-func (tool *Tool) Decrypt(data []byte, length int, sk *rlwe.SecretKey, degree, level int) (decrypted string) {
+func (tool *Tool) Decrypt(data string, length int, sk *rlwe.SecretKey, degree, level int) (decrypted string) {
 	decryptor := bgv.NewDecryptor(tool.params, sk)
 	ct := bgv.NewCiphertext(tool.params, degree, level)
-	err := ct.UnmarshalBinary(data)
+	rawData, _ := base64.StdEncoding.DecodeString(data)
+	err := ct.UnmarshalBinary(rawData)
 
 	pt := decryptor.DecryptNew(ct)
 

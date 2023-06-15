@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Cookies from 'universal-cookie';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 var MSG_TEMPLATE = {
     receiver: null,
@@ -27,7 +27,10 @@ export default function Chat() {
     const [online, setOnline] = useState([]);
     const [onlineToShow, setOnlineToShow] = useState([]);
     const [authorized, setAuthorized] = useState(false);
+    const [secretKey, setSecretKey] = useState(undefined);
+    const [publicKey, setPublicKey] = useState(undefined);
     const navigate = useNavigate();
+    let db;
 
     useEffect(() => {
         const initialize = async () => {
@@ -51,6 +54,7 @@ export default function Chat() {
     
             const socket = new WebSocket("ws://" + window.location.hostname + ":4008");
             var enc = new TextEncoder();
+            var d = "";
     
             socket.addEventListener("open", () => {
                 socket.send(enc.encode(JSON.stringify({ Authorization: cookies.get("session") })));
@@ -58,11 +62,15 @@ export default function Chat() {
     
             socket.addEventListener("message", (event) => {
                 event.data.text().then((resp) => {
-                    if (isJSON(resp)) {
-                        var msg = JSON.parse(resp);
-                        setCurMsg(msg);
-                    } else {
-                        console.log(resp);
+                    d += resp;
+                    if (resp.length != 65536) {
+                        if (isJSON(d)) {
+                            var msg = JSON.parse(d);
+                            setCurMsg({ sender: msg.sender, receiver: msg.receiver, body: window.decrypt(msg.body, secretKey) });
+                        } else {
+                            console.log(d)
+                        }
+                        d = "";
                     }
                 });
             });
@@ -71,6 +79,28 @@ export default function Chat() {
         setInterval(loadOnline, 5000);
 
         initialize();
+    }, [secretKey])
+
+    useEffect(() => {
+        var openReq = indexedDB.open("keyDB", 1);
+        openReq.onerror = () => {
+            toast.error("please generate the keys to continue");
+        }
+        openReq.onsuccess = (e) => {
+            db = e.target.result;
+            const tx = db.transaction("keyDB_Store", "readwrite");
+            const store = tx.objectStore("keyDB_Store");
+            const loadedKey = store.get("secret-key");
+
+            loadedKey.onsuccess = (event) => {
+                if (event.target.result != undefined) {
+                    setSecretKey(event.target.result.value);
+                }
+            }
+            loadedKey.onerror = () => {
+                toast.error("database has no key! please generate new one");
+            }
+        }
     }, [])
 
     useEffect(() => {
@@ -110,9 +140,7 @@ export default function Chat() {
     const sendMessage = () => {
         var msg = MSG_TEMPLATE;
         msg.receiver = receiver;
-        msg.body = document.getElementsByName("typed")[0].value;
-
-        document.getElementsByName("typed")[0].value = "";
+        msg.body = window.encrypt(document.getElementsByName("typed")[0].value, publicKey);
 
         fetch("/api/user/send", {
             method: "POST",
@@ -128,15 +156,32 @@ export default function Chat() {
                 toast.error(data.error);
             }
         })
+
+        setCurMsg({receiver: msg.receiver, sender: sender, body: document.getElementsByName("typed")[0].value});
+        document.getElementsByName("typed")[0].value = "";
     }
 
     const selectUser = (e) => {
         setReceiver(e.target.innerHTML);
     }
 
-    // useEffect(() => {
-    //     if (authorized) document.getElementById("receiver").value = receiver;
-    // }, [receiver]);
+    useEffect(() => {
+        toast.promise(fetch("/api/pubkey/" + receiver).then((resp) => {
+            return resp.text();
+        }).then((data) => {
+            if (isJSON(data)) {
+                var msg = JSON.parse(data)
+                if (msg.status == "success") {
+                    setPublicKey(msg.message);
+                } else {
+                    throw "internal server error";
+                }
+            }
+        }), {
+            pending: "Please wait",
+            error: "user has not set the keys"
+        })
+    }, [receiver])
 
     const loadOnline = () => {
         fetch("/api/user/getonline", {
@@ -146,7 +191,9 @@ export default function Chat() {
         }).then((resp) => {
             return resp.json();
         }).then((data) => {
-            setOnline(data.users.sort().filter(e => e != ""));
+            if (data.users != undefined) {
+                setOnline(data.users.sort().filter(e => e != ""));
+            }
         })
     }
 
@@ -159,7 +206,7 @@ export default function Chat() {
     return (
         <>
         { authorized ?
-            <div className='block flex-col justify-center h-full'>
+            (secretKey != undefined) ? <div className='block flex-col justify-center h-full'>
                 <div className='p-3 flex justify-center items-center'>
                     <p className='text-center text-4xl bg-white w-fit p-3 rounded-xl text-gray-600 font-bold'>Hi, {sender}</p>
                 </div>
@@ -195,7 +242,7 @@ export default function Chat() {
                         </div>
                     </div>
                 </div>
-            </div>
+            </div> : <div className='text-3xl'>Please <Link to="/app/user/generate"><span className='underline text-blue-100'>GENERATE</span></Link> the keys</div>
             :
             <div className='text-3xl'>PLEASE LOGIN</div>
         }
