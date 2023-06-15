@@ -63,12 +63,13 @@ export default function Chat() {
             socket.addEventListener("message", (event) => {
                 event.data.text().then((resp) => {
                     d += resp;
-                    if (resp.length != 65536) {
+                    if (resp.length <= 65500) {
                         if (isJSON(d)) {
                             var msg = JSON.parse(d);
-                            setCurMsg({ sender: msg.sender, receiver: msg.receiver, body: window.decrypt(msg.body, secretKey) });
+                            if (secretKey != undefined) setCurMsg({ sender: msg.sender, receiver: msg.receiver, body: window.decrypt(msg.body, secretKey) });
+                            else toast.error("someone is sending you messages, please set the keys to see them!")
                         } else {
-                            console.log(d)
+                            console.log(resp.length, d)
                         }
                         d = "";
                     }
@@ -94,14 +95,15 @@ export default function Chat() {
 
             loadedKey.onsuccess = (event) => {
                 if (event.target.result != undefined) {
-                    setSecretKey(event.target.result.value);
+                    if (event.target.result.user == sender) setSecretKey(event.target.result.value);
+                    else if (sender != "") toast.error("database has no key! please generate new one");
                 }
             }
             loadedKey.onerror = () => {
                 toast.error("database has no key! please generate new one");
             }
         }
-    }, [])
+    }, [sender])
 
     useEffect(() => {
         if (curMsg.sender != undefined) {
@@ -140,25 +142,30 @@ export default function Chat() {
     const sendMessage = () => {
         var msg = MSG_TEMPLATE;
         msg.receiver = receiver;
-        msg.body = window.encrypt(document.getElementsByName("typed")[0].value, publicKey);
 
-        fetch("/api/user/send", {
-            method: "POST",
-            body: JSON.stringify(msg),
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": "Bearer " + cookies.get("session")
-            }
-        }).then((resp) => {
-            return resp.json();
-        }).then((data) => {
-            if (data.status == "fail") {
-                toast.error(data.error);
-            }
-        })
+        if (publicKey != undefined) {
+            msg.body = window.encrypt(document.getElementsByName("typed")[0].value, publicKey);
 
-        setCurMsg({receiver: msg.receiver, sender: sender, body: document.getElementsByName("typed")[0].value});
-        document.getElementsByName("typed")[0].value = "";
+            fetch("/api/user/send", {
+                method: "POST",
+                body: JSON.stringify(msg),
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + cookies.get("session")
+                }
+            }).then((resp) => {
+                return resp.json();
+            }).then((data) => {
+                if (data.status == "fail") {
+                    toast.error(data.error);
+                }
+            })
+
+            setCurMsg({receiver: msg.receiver, sender: sender, body: document.getElementsByName("typed")[0].value});
+            document.getElementsByName("typed")[0].value = "";
+        } else {
+            toast.error("please ask the user to set keys first!");
+        }
     }
 
     const selectUser = (e) => {
@@ -203,8 +210,14 @@ export default function Chat() {
         }
     }
 
+    const logout = async () => {
+        await cookies.remove("session", { path: "/" });
+        window.location.reload();
+    }
+
     return (
         <>
+        <div onClick={logout} className='absolute top-5 right-10 bg-white p-3 px-5 rounded-lg text-gray-600 font-bold cursor-pointer'>Logout</div>
         { authorized ?
             (secretKey != undefined) ? <div className='block flex-col justify-center h-full'>
                 <div className='p-3 flex justify-center items-center'>
