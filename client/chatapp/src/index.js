@@ -31,7 +31,7 @@ function Main() {
             </div > 
             <BrowserRouter>
                 <Routes>
-                    <Route element={<App />} path='/app'></Route>
+                    <Route element={<App />} path='/'></Route>
                     <Route element={<Login />} path='/app/auth/login'></Route>
                     <Route element={<Register />} path='/app/auth/register'></Route>
                     <Route element={<Chat />} path='/app/user/chat'></Route>
